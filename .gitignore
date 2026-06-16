@@ -1,0 +1,32 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Java / Maven
+microservices/**/target/
+microservices/.idea/
+
+# 环境变量
+.env
+
+# 大文件 / 特定文件
+*.jar
+warmup_calculator.py
+**/.gitkeep
+
+# 学习文档
+docs/
+
+# OS
+.DS_Store
+Thumbs.db

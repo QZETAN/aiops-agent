@@ -1,0 +1,48 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317    # 接收 Java Agent 的 gRPC 数据
+      http:
+        endpoint: 0.0.0.0:4318    # 接收 HTTP 数据（备用）
+
+processors:
+  batch:                           # 批量发送，降低网络开销
+    timeout: 10s
+    send_batch_size: 1024
+
+exporters:
+  prometheusremotewrite:           # 指标 → Prometheus
+    endpoint: "http://prometheus:9090/api/v1/write"
+    tls:
+      insecure: true
+
+  otlp/jaeger:                     # Trace → Jaeger
+    endpoint: "jaeger:4317"
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: false
+
+  loki:                            # 日志 → Loki
+    endpoint: "http://loki:3100/loki/api/v1/push"
+
+  debug:                           # 可选：打印到控制台，调试用
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger, debug]
+
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheusremotewrite, debug]
+
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [loki, debug]
