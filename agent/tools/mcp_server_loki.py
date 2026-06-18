@@ -52,7 +52,13 @@ async def query_logs(service: str, keyword: str = "", minutes: int = 30, limit: 
     Returns:
         JSON，含 logql（执行的查询）、total（匹配数）、logs 数组
     """
-    logger.info(f"query_logs: service={service}, keyword={keyword!r}, minutes={minutes}")
+    if not LOKI_URL:
+        return json.dumps({
+            "error": "Loki 地址未配置",
+            "help": "请在 .env 文件中设置 LOKI_URL=http://你的地址:3100",
+        }, ensure_ascii=False)
+
+    logger.info("query_logs: service=%s, keyword=%r, minutes=%d", service, keyword, minutes)
 
     now = datetime.now(timezone.utc)
     start_ts = (now - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")

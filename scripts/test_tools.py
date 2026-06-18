@@ -1,15 +1,20 @@
 """
 MCP 工具连通性测试脚本
-用法：python scripts/test_tools.py
+用法：python scripts/test_tools.py（需要先 pip install -e .）
 """
 import asyncio
 import sys
 
-sys.path.insert(0, "agent/tools")
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+from agent.tools.mcp_server_prometheus import query_promql
+from agent.tools.mcp_server_loki import query_logs
+from agent.tools.mcp_server_jaeger import find_traces
 
 
 async def test_prometheus():
-    from mcp_server_prometheus import query_promql
     print("=" * 50)
     print("[1/3] 测试 Prometheus...")
     result = await query_promql("up", "-5m", "now")
@@ -18,7 +23,6 @@ async def test_prometheus():
 
 
 async def test_loki():
-    from mcp_server_loki import query_logs
     print("=" * 50)
     print("[2/3] 测试 Loki...")
     result = await query_logs("order-service", "", 30, 5)
@@ -27,7 +31,6 @@ async def test_loki():
 
 
 async def test_jaeger():
-    from mcp_server_jaeger import find_traces
     print("=" * 50)
     print("[3/3] 测试 Jaeger...")
     result = await find_traces("gateway-service", 60, 5)

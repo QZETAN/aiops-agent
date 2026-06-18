@@ -1,13 +1,17 @@
 """
 AIOps Agent 自动化诊断测试脚本。
-运行方式：python scripts/test_pipeline.py
+运行方式：python scripts/test_pipeline.py（需要先 pip install -e .）
 """
 import argparse
 import json
 import sys
 import time
 
-sys.path.insert(0, ".")
+# 修复 Windows GBK 编码下 emoji 输出报错的问题
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from langchain_core.messages import HumanMessage
 from agent.agents.graph import build_graph
@@ -56,6 +60,8 @@ def run_single_test(test_case: dict, graph) -> dict:
         "evidence": {},
         "iteration_count": 0,
         "reflection_round": 0,
+        "diagnosis_id": test_case["id"],
+        "total_tokens": 0,
     }
 
     start_time = time.time()

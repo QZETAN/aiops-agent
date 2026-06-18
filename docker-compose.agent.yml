@@ -1,0 +1,90 @@
+# ============================================================================
+# AIOps Agent + 监控栈 一体化部署
+# ============================================================================
+# 使用方式：docker compose -f docker-compose.agent.yml up -d
+#
+# 包含：
+#   aiops-agent  → 诊断引擎（/health /diagnose /metrics）
+#   prometheus   → 时序指标（:9090）
+#   loki         → 日志聚合（:3100）
+#   jaeger       → 调用链（:16686）
+#   grafana      → 可视化（:3000）
+#
+# 注意：微服务需要单独启动（或对接现有的）。
+# ============================================================================
+
+version: "3.8"
+
+services:
+  # ── Agent ──────────────────────────────────────────────────────────
+  aiops-agent:
+    build: .
+    image: aiops-agent:0.2.0
+    container_name: aiops-agent
+    ports:
+      - "8000:8000"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOKI_URL=http://loki:3100
+      - JAEGER_URL=http://jaeger:16686
+      - GIT_REPO_PATH=${GIT_REPO_PATH:-}
+    command: ["--port", "8000"]
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    restart: unless-stopped
+
+  # ── 监控栈 ────────────────────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.124.0
+    container_name: otel-collector
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./docker/config/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    command: ["--config", "/etc/otelcol-contrib/config.yaml"]
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.2.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/config/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-remote-write-receiver"
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./docker/config/loki-config.yaml:/etc/loki/local-config.yaml
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.63.0
+    container_name: jaeger
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./docker/config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
+    restart: unless-stopped

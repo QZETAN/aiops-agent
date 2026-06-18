@@ -50,3 +50,5 @@ class AgentState(TypedDict):
     evidence: dict
     iteration_count: int
     reflection_round: int
+    diagnosis_id: str          # Phase 3: 每次诊断的唯一标识（UUID），贯穿所有日志
+    total_tokens: int          # Phase 3: 累计消耗的 token 数（用于成本控制）

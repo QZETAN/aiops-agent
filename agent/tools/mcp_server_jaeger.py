@@ -50,7 +50,13 @@ async def find_traces(service: str, minutes: int = 30, limit: int = 20, tag: str
     Returns:
         traces 数组，每条含 trace_id/spans_count/duration_ms/services/error_spans
     """
-    logger.info(f"find_traces: service={service}, minutes={minutes}")
+    if not JAEGER_URL:
+        return json.dumps({
+            "error": "Jaeger 地址未配置",
+            "help": "请在 .env 文件中设置 JAEGER_URL=http://你的地址:16686",
+        }, ensure_ascii=False)
+
+    logger.info("find_traces: service=%s, minutes=%d", service, minutes)
     now = datetime.now(timezone.utc)
     start_us = str(int((now - timedelta(minutes=minutes)).timestamp() * 1_000_000))
     end_us = str(int(now.timestamp() * 1_000_000))
@@ -107,7 +113,13 @@ async def get_trace_detail(trace_id: str) -> str:
     Returns:
         每个 Span 含 span_id/operation_name/service_name/duration_ms/references/tags
     """
-    logger.info(f"get_trace_detail: trace_id={trace_id}")
+    if not JAEGER_URL:
+        return json.dumps({
+            "error": "Jaeger 地址未配置",
+            "help": "请在 .env 文件中设置 JAEGER_URL=http://你的地址:16686",
+        }, ensure_ascii=False)
+
+    logger.info("get_trace_detail: trace_id=%s", trace_id)
     try:
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
             resp = await client.get(f"{JAEGER_URL}/api/traces/{trace_id}")

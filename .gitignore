@@ -27,6 +27,9 @@ warmup_calculator.py
 # 学习文档
 docs/
 
+# 诊断数据库（本地文件，不提交）
+data/
+
 # OS
 .DS_Store
 Thumbs.db

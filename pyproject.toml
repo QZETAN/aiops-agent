@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aiops-agent"
+version = "0.2.0"
+description = "基于 LangGraph 多智能体的 AIOps 故障诊断 Agent"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "QZETAN"},
+]
+keywords = ["aiops", "langgraph", "multi-agent", "mcp", "observability"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Monitoring",
+]
+
+dependencies = [
+    "langgraph>=0.2",
+    "langchain-openai>=0.3",
+    "langchain-core>=0.3",
+    "mcp>=1.0",
+    "streamlit>=1.30",
+    "requests>=2.31",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "httpx>=0.27",
+    "tenacity>=8.0",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+
+[project.scripts]
+aiops = "app:main"
+
+[tool.setuptools]
+py-modules = ["app"]
+packages = ["agent", "agent.agents", "agent.tools", "ui", "scripts"]

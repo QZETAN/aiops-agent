@@ -9,16 +9,24 @@
 """
 
 import argparse
+import os
+import sys
 import time
 import requests
 from dataclasses import dataclass
 
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
 # ==================== 服务地址 ====================
+# 默认使用本地 demo 微服务地址，可通过环境变量覆盖
+# 如：GATEWAY_URL=http://192.168.1.100:8080 ORDER_URL=...
 
 SERVICES = {
-    "gateway":  "http://localhost:8080",
-    "order":    "http://localhost:8081",
-    "user":     "http://localhost:8082",
+    "gateway":  os.environ.get("GATEWAY_URL", "http://localhost:8080"),
+    "order":    os.environ.get("ORDER_URL", "http://localhost:8081"),
+    "user":     os.environ.get("USER_URL", "http://localhost:8082"),
 }
 
 # ==================== 故障定义 ====================

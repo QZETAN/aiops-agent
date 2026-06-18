@@ -17,36 +17,37 @@ Graph —— 多智能体诊断工作流的图组装和编译。
                        │
                        ▼
                    supervisor（重新调度）
+
+重构说明（Phase 1）：
+  - LLM 从 agent.config.create_llm() 获取，不再模块级硬编码
+  - JSON 清理使用 agent.utils.clean_json_response
+  - 常量（MAX_ITERATIONS 等）从 agent.config 读取
 """
 import json
 import logging
-import os
 
 from langgraph.graph import StateGraph, END
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from agent.agents.state import AgentState
 from agent.agents.supervisor import supervisor_node
 from agent.agents.experts import EXPERTS
 from agent.agents.reflect import reflect_node, _extract_confidence_from_report
-
-logger = logging.getLogger("graph")
-
-# ==================== LLM（推理节点专用） ====================
-
-_infer_llm = ChatOpenAI(
-    model="deepseek-chat",
-    api_key=os.environ["DEEPSEEK_API_KEY"],
-    base_url="https://api.deepseek.com/v1",
-    temperature=0.0,
+from agent.config import (
+    create_llm,
+    MAX_ITERATIONS as _CFG_MAX_ITERATIONS,
+    MAX_REFLECTIONS as _CFG_MAX_REFLECTIONS,
+    MIN_CONFIDENCE as _CFG_MIN_CONFIDENCE,
 )
+from agent.utils import clean_json_response
 
-# ==================== 常量 ====================
+logger = logging.getLogger("aiops.graph")
 
-MAX_ITERATIONS = 10      # Supervisor 最大调度轮数
-MAX_REFLECTIONS = 2      # 最大反思轮数
-MIN_CONFIDENCE = 0.7     # 最低置信度阈值
+# ==================== 常量（从统一配置读取，可通过环境变量覆盖） ====================
+
+MAX_ITERATIONS = _CFG_MAX_ITERATIONS       # Supervisor 最大调度轮数
+MAX_REFLECTIONS = _CFG_MAX_REFLECTIONS     # 最大反思轮数
+MIN_CONFIDENCE = _CFG_MIN_CONFIDENCE       # 最低置信度阈值
 
 # 合法的 Expert 名列表
 _VALID_AGENTS = ["metrics_expert", "logs_expert", "traces_expert", "code_expert"]
@@ -60,18 +61,18 @@ def _route_supervisor(state: AgentState) -> str:
     iteration = state.get("iteration_count", 0)
 
     if iteration >= MAX_ITERATIONS:
-        logger.warning(f"达到最大迭代次数 {MAX_ITERATIONS}，强制结束")
+        logger.warning("达到最大迭代次数 %d，强制结束", MAX_ITERATIONS)
         return "infer"
 
     if next_agent in _VALID_AGENTS:
-        logger.info(f"路由到: {next_agent}")
+        logger.info("路由到: %s", next_agent)
         return next_agent
 
     if next_agent == "FINISH":
         logger.info("路由到: infer（Supervisor 决定结案）")
         return "infer"
 
-    logger.warning(f"非法 next_agent: '{next_agent}'，兜底到 infer")
+    logger.warning("非法 next_agent: '%s'，兜底到 infer", next_agent)
     return "infer"
 
 
@@ -81,16 +82,16 @@ def _route_after_infer(state: AgentState) -> str:
     messages = state["messages"]
 
     if reflection_round >= MAX_REFLECTIONS:
-        logger.info(f"反思已达 {MAX_REFLECTIONS} 轮上限，直接结束")
+        logger.info("反思已达 %d 轮上限，直接结束", MAX_REFLECTIONS)
         return "end"
 
     confidence = _extract_confidence_from_report(messages)
 
     if confidence < MIN_CONFIDENCE:
-        logger.info(f"置信度 {confidence} < {MIN_CONFIDENCE}，进入反思节点")
+        logger.info("置信度 %s < %s，进入反思节点", confidence, MIN_CONFIDENCE)
         return "reflect"
 
-    logger.info(f"置信度 {confidence} >= {MIN_CONFIDENCE}，直接结束")
+    logger.info("置信度 %s >= %s，直接结束", confidence, MIN_CONFIDENCE)
     return "end"
 
 
@@ -136,7 +137,18 @@ _INFER_SYSTEM_PROMPT = """\
 ✅ 好："回滚 abc123def 提交（张三，2026-06-16 14:58）"
 
 ❌ 不好："扩容"
-✅ 好："将 user-service CPU 限制从 1 核扩至 2 核"
+✅ 好："将 <服务名> CPU 限制从 1 核扩至 2 核"
+
+## 置信度评估标准
+- 0.90-1.00：三个数据源（指标+日志+Trace）都明确指向同一根因
+- 0.70-0.89：两个数据源指向同一根因
+- 0.50-0.69：只有一个数据源有明确信号
+- 0.30-0.49：多个数据源都查不到数据，只能根据告警描述推测
+- 0.30 以下：完全无法判断，建议人工排查
+
+## 特别注意
+- 如果专家报告中标记了 backend_unavailable=true，说明该数据源不可用，
+  这是环境配置问题，不是故障根因。在报告中注明"XX 数据源不可用，诊断不完整"
 """
 
 
@@ -158,23 +170,20 @@ def _infer_node(state: AgentState) -> dict:
     full_messages = [*state["messages"], *infer_messages]
 
     try:
-        response = _infer_llm.invoke(full_messages)
-        content = response.content.strip()
-
-        if content.startswith("```"):
-            lines = content.split("\n")
-            content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        llm = create_llm()  # ← 统一从 config 获取
+        response = llm.invoke(full_messages)
+        content = clean_json_response(response.content)  # ← 统一 JSON 清理
 
         try:
             report = json.loads(content)
-            conf = report.get('root_causes', [{}])[0].get('confidence', 'N/A')
-            logger.info(f"推理节点：报告生成完成，置信度={conf}")
+            conf = report.get("root_causes", [{}])[0].get("confidence", "N/A")
+            logger.info("推理节点：报告生成完成，置信度=%s", conf)
         except json.JSONDecodeError:
             logger.warning("推理节点：LLM 返回非标准 JSON，保留原始内容")
             report = {"title": "故障诊断报告", "raw_output": content, "note": "LLM 输出非标准 JSON"}
 
     except Exception as e:
-        logger.error(f"推理节点异常: {e}")
+        logger.error("推理节点异常: %s", e)
         report = {"title": "诊断报告生成失败", "error": str(e)}
 
     return {
@@ -227,5 +236,5 @@ def build_graph() -> StateGraph:
     workflow.add_edge("reflect", "supervisor")
 
     compiled_graph = workflow.compile()
-    logger.info("工作流图构建完成 ✅（含反思循环）")
+    logger.info("工作流图构建完成（含反思循环）")
     return compiled_graph

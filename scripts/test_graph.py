@@ -1,16 +1,13 @@
 """
 Graph 构建与组件验证脚本。
-运行方式：python scripts/test_graph.py
+运行方式：python scripts/test_graph.py（需要先 pip install -e .）
 """
-import sys
-sys.path.insert(0, ".")
-
 print("=" * 60)
 print("[1/6] State 字段检查")
 print("=" * 60)
 from agent.agents.state import AgentState
 
-expected_fields = {"messages", "next_agent", "intermediate_steps", "evidence", "iteration_count", "reflection_round"}
+expected_fields = {"messages", "next_agent", "intermediate_steps", "evidence", "iteration_count", "reflection_round", "diagnosis_id", "total_tokens"}
 actual_fields = set(AgentState.__annotations__.keys())
 if actual_fields == expected_fields:
     print(f"  [OK] AgentState {len(actual_fields)} 个字段完整: {sorted(actual_fields)}")
@@ -95,6 +92,8 @@ try:
         "evidence": {},
         "iteration_count": 0,
         "reflection_round": 0,
+        "diagnosis_id": "test-001",
+        "total_tokens": 0,
     }
     for k in expected_fields:
         assert k in test_state, f"缺少字段: {k}"

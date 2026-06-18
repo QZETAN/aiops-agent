@@ -68,7 +68,13 @@ async def query_promql(query: str, start: str = "-30m", end: str = "now", step: 
     Returns:
         JSON 字符串，含 series_count 和每条序列的 avg/max/min/latest
     """
-    logger.info(f"query_promql: query={query[:80]}, start={start}")
+    if not PROMETHEUS_URL:
+        return json.dumps({
+            "error": "Prometheus 地址未配置",
+            "help": "请在 .env 文件中设置 PROMETHEUS_URL=http://你的地址:9090",
+        }, ensure_ascii=False)
+
+    logger.info("query_promql: query=%s, start=%s", query[:80], start)
     start_ts = _parse_relative_time(start)
     end_ts = _parse_relative_time(end)
 
