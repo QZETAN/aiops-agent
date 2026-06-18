@@ -45,6 +45,118 @@ Agent：discover_services() → 发现 3 个服务
 
 ---
 
+---
+
+## 你的情况
+
+选一个：
+
+| 你的情况 | 直接跳到 |
+|----------|---------|
+| **有 Prometheus + Loki + Jaeger**，只是想把 Agent 接进来 | → [快速开始](#快速开始) |
+| **有微服务，但没有监控** | → [从零开始：给你的微服务加上监控](#从零开始给你的微服务加上监控) |
+| **什么都没有，想先看看效果** | → [从零开始：用 Demo 微服务体验](#从零开始用-demo-微服务体验) |
+
+---
+
+## 从零开始：给你的微服务加上监控
+
+如果你有微服务但没接 Prometheus / Loki / Jaeger，按下面步骤来。**给微服务加的只有一个 Java Agent 启动参数，不改一行业务代码。**
+
+### 架构
+
+```
+你的微服务                        本项目的监控栈（Docker Compose 一键启动）
+┌─────────────────┐              ┌──────────────────────────────┐
+│ your-service     │──OTLP gRPC─→│ OTel Collector :4317         │
+│ + OTel Java Agent│  上报指标、 │   ├→ Prometheus :9090        │
+│   (启动时挂一个jar)│  日志、Trace│   ├→ Loki :3100              │
+└─────────────────┘              │   ├→ Jaeger :16686           │
+                                 │   └→ Grafana :3000           │
+                                 └──────────────────────────────┘
+```
+
+### 步骤
+
+**1. 启动监控栈**
+
+```bash
+cd aiops-agent
+docker compose -f docker-compose.agent.yml up -d
+```
+
+启动后验证：
+- Prometheus: http://localhost:9090
+- Jaeger: http://localhost:16686
+- Grafana: http://localhost:3000
+
+**2. 给你的微服务挂 OTel Java Agent**
+
+在你的服务启动参数里加一行（以 Spring Boot 为例）：
+
+```
+-javaagent:/path/to/opentelemetry-javaagent.jar
+-Dotel.service.name=你的服务名
+-Dotel.exporter.otlp.endpoint=http://localhost:4317
+-Dotel.metrics.exporter=otlp
+-Dotel.logs.exporter=otlp
+-Dotel.traces.exporter=otlp
+```
+
+Java Agent JAR 可以从 [OpenTelemetry 官方](https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases) 下载。如果是非 Java 服务，OTel 支持 [所有主流语言](https://opentelemetry.io/docs/languages/)。
+
+**3. 产生流量，确认数据进来**
+
+```bash
+# 对着你的服务发几个请求
+curl http://localhost:8080/你的接口
+
+# 确认 Jaeger 看到了你的服务
+curl http://localhost:16686/api/services
+# 返回 {"data": ["你的服务名", ...]} 就是通了
+```
+
+**4. 配 .env 并开始诊断**
+
+```bash
+cp .env.example .env
+# 编辑 .env：填 DEEPSEEK_API_KEY，其他三个 URL 用默认的 localhost 即可
+aiops diagnose --alert "你的服务突然报 500 错误"
+```
+
+---
+
+## 从零开始：用 Demo 微服务体验
+
+项目自带三个 Spring Boot 微服务（gateway → order → user），开箱即用。
+
+### 1. 启动监控栈
+
+```bash
+docker compose -f docker-compose.agent.yml up -d
+```
+
+### 2. 启动 Demo 微服务
+
+用 IDEA 分别打开 `microservices/` 下的三个子项目，运行 `*Application.java`。
+
+VM Options 已预配 `-javaagent:microservices/otel-agent/opentelemetry-javaagent.jar`，指向 localhost:4317。
+
+### 3. 产生流量 + 注入故障 + 诊断
+
+```bash
+# 产生流量
+for i in $(seq 1 20); do curl -s http://localhost:8080/api/order/1 > /dev/null; done
+
+# 注入 CPU 故障
+curl -X POST "http://localhost:8082/fault/cpu?seconds=30"
+
+# 诊断
+aiops diagnose --alert "有服务 CPU 突然飙升"
+```
+
+---
+
 ## 快速开始
 
 ### 前置条件
