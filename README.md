@@ -106,7 +106,7 @@ JAR 下载地址：[OpenTelemetry Java Agent Releases](https://github.com/open-t
 
 ### 确认数据已上报
 
-发几个请求到你的服务，然后访问 Jaeger UI（`http://localhost:16686`），在 Service 下拉框里看到你的服务名就说明通了。
+发几个请求到你的服务，然后浏览器打开 `http://你的IP:16686`（Docker 在本机就是 `localhost`，在服务器就是服务器的 IP），Jaeger 页面的 Service 下拉框里出现你的服务名就说明通了。
 
 ---
 
@@ -174,25 +174,6 @@ curl -X POST http://localhost:8082/fault/cpu?seconds=30
 
 ---
 
-## 容器与资源
-
-核心部署 5 个容器，空闲约 900MB，正常使用约 1.5GB，本地电脑完全够用：
-
-| 容器 | 作用 | 端口 | 约内存 |
-|------|------|------|--------|
-| aiops-agent | 诊断引擎 + Web UI | 8000, 8501 | 300MB |
-| otel-collector | 接收微服务上报数据 | 4317 | 80MB |
-| prometheus | 指标存储 | 9090 | 300MB |
-| loki | 日志存储 | 3100 | 200MB |
-| jaeger | 调用链存储 | 16686 | 150MB |
-| grafana *(可选)* | 可视化看板 | 3000 | 100MB |
-
-所有容器配了 `restart: unless-stopped`，挂了自动拉起。Docker Compose 管理 5-6 个容器是常规操作，不存在"容易挂"的问题。
-
-> Prometheus / Loki / Jaeger 是三个独立产品，不能合并成一个容器。这也违背 Docker "一个进程一个容器" 的最佳实践。
-
----
-
 ## 常见问题
 
 **Q: 对接现有微服务需要改代码吗？**
@@ -200,6 +181,9 @@ curl -X POST http://localhost:8082/fault/cpu?seconds=30
 
 **Q: 没有 Prometheus / Loki / Jaeger？**
 `docker compose up -d` 已经包含全部，不需要额外安装。
+
+**Q: 容器多不多？会挂吗？**
+核心 5 个，每个配了 `restart: unless-stopped`，挂了自动拉起。
 
 **Q: 为什么用 DeepSeek？能换吗？**
 可以。改 `.env` 中的 `LLM_MODEL` 和 `LLM_BASE_URL` 即可换成 OpenAI 或 Ollama。
