@@ -174,6 +174,22 @@ curl -X POST http://localhost:8082/fault/cpu?seconds=30
 
 ---
 
+## 资源占用
+
+核心部署 5 个容器，空闲约 900MB，正常使用约 1.5GB。16GB 笔记本无压力。
+
+| 容器 | 作用 | 内存 |
+|------|------|------|
+| aiops-agent | 诊断引擎 + Web UI | ~300MB |
+| otel-collector | 数据接收 | ~80MB |
+| prometheus | 指标存储 | ~300MB |
+| loki | 日志存储 | ~200MB |
+| jaeger | 调用链存储 | ~150MB |
+
+所有容器配了 `restart: unless-stopped`，挂了自动拉起。
+
+---
+
 ## 常见问题
 
 **Q: 对接现有微服务需要改代码吗？**
