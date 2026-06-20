@@ -44,16 +44,20 @@ DEEPSEEK_API_KEY=sk-你的key
 ### 3. 启动
 
 ```bash
+# 核心部署（5 个容器，约 900MB）
 docker compose --env-file .env -f docker/docker-compose.yml up -d --build
+
+# 需要 Grafana 可视化看板？加 --profile full（多一个容器，约 +100MB）
+docker compose --profile full --env-file .env -f docker/docker-compose.yml up -d --build
 ```
 
-首次运行会拉取镜像和构建，约 3-5 分钟。之后再次启动只需几秒。
+首次运行拉取镜像和构建约 3-5 分钟。之后再次启动只需几秒。
 
 ### 4. 打开 Web UI
 
 浏览器打开 `http://localhost:8501`，输入告警内容即可开始诊断。
 
-> 如果你的 Docker 跑在远程服务器上，把 `localhost` 换成服务器 IP。
+> Docker 跑在远程服务器上？把 `localhost` 换成服务器 IP。
 
 ---
 
@@ -167,6 +171,25 @@ curl -X POST http://localhost:8082/fault/cpu?seconds=30
 
 # 在 Web UI 输入 "有服务 CPU 飙升" 诊断
 ```
+
+---
+
+## 容器与资源
+
+核心部署 5 个容器，空闲约 900MB，正常使用约 1.5GB，本地电脑完全够用：
+
+| 容器 | 作用 | 端口 | 约内存 |
+|------|------|------|--------|
+| aiops-agent | 诊断引擎 + Web UI | 8000, 8501 | 300MB |
+| otel-collector | 接收微服务上报数据 | 4317 | 80MB |
+| prometheus | 指标存储 | 9090 | 300MB |
+| loki | 日志存储 | 3100 | 200MB |
+| jaeger | 调用链存储 | 16686 | 150MB |
+| grafana *(可选)* | 可视化看板 | 3000 | 100MB |
+
+所有容器配了 `restart: unless-stopped`，挂了自动拉起。Docker Compose 管理 5-6 个容器是常规操作，不存在"容易挂"的问题。
+
+> Prometheus / Loki / Jaeger 是三个独立产品，不能合并成一个容器。这也违背 Docker "一个进程一个容器" 的最佳实践。
 
 ---
 
