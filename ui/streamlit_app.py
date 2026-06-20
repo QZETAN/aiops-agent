@@ -88,13 +88,13 @@ tab_diag, tab_history, tab_stats = st.tabs(["🩺 诊断", "📋 历史记录", 
 # Tab 1: 诊断
 # ============================================================================
 
-# 初始化 session state
-if "alert_input" not in st.session_state:
-    st.session_state.alert_input = ""
-
 with tab_diag:
     col_input, col_btn = st.columns([5, 1])
     with col_input:
+        # 示例按钮的回调
+        def set_example(text: str):
+            st.session_state.alert_input = text
+
         alert_text = st.text_area(
             "告警内容",
             key="alert_input",
@@ -107,7 +107,7 @@ with tab_diag:
         st.write("")
         start_btn = st.button("🚀 开始诊断", type="primary", use_container_width=True)
 
-    # 快捷示例（直接写入 text_area 的 session_state key，点完即填）
+    # 快捷示例
     with st.expander("📝 告警示例（点击展开）"):
         examples = [
             "有服务 5xx 错误率突然飙升到 25%，大量请求返回 500",
@@ -116,9 +116,10 @@ with tab_diag:
         ]
         cols = st.columns(len(examples))
         for i, ex in enumerate(examples):
-            if cols[i].button(f"示例 {i + 1}", key=f"ex_{i}", use_container_width=True):
-                st.session_state.alert_input = ex
-                st.rerun()
+            cols[i].button(
+                f"示例 {i + 1}", key=f"ex_{i}", use_container_width=True,
+                on_click=set_example, args=(ex,)
+            )
 
     if start_btn and alert_text.strip():
         diag_id = str(uuid.uuid4())[:8]
