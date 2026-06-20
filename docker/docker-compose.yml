@@ -20,7 +20,7 @@
 version: "3.8"
 
 services:
-  # ==================== 1. AIOps Agent（诊断引擎）====================
+  # ==================== 1. AIOps Agent API（诊断引擎）====================
   aiops-agent:
     build:
       context: ..
@@ -34,11 +34,28 @@ services:
       - PROMETHEUS_URL=http://prometheus:9090
       - LOKI_URL=http://loki:3100
       - JAEGER_URL=http://jaeger:16686
-    command: ["--port", "8000"]
+    command: ["agent.server", "--port", "8000"]
     depends_on:
       - prometheus
       - loki
       - jaeger
+    restart: unless-stopped
+
+  # ==================== 2. AIOps Agent Web UI ====================
+  aiops-ui:
+    image: aiops-agent:latest        # 复用同一个镜像
+    container_name: aiops-ui
+    ports:
+      - "8501:8501"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOKI_URL=http://loki:3100
+      - JAEGER_URL=http://jaeger:16686
+      - STREAMLIT_SERVER_PORT=8501
+    command: ["streamlit", "run", "ui/streamlit_app.py", "--server.port", "8501", "--server.headless", "true"]
+    depends_on:
+      - aiops-agent
     restart: unless-stopped
 
   # ==================== 2. OTel Collector ====================
