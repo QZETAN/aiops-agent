@@ -2,25 +2,27 @@
 # AIOps Agent 一体化部署
 # ============================================================================
 #
-# 一条命令启动全部：
+# 启动全部（含 Grafana）：
+#   docker compose --profile full up -d
+#
+# 启动核心（不含 Grafana，省内存）：
 #   docker compose up -d
 #
-# 包含：
-#   aiops-agent    → 诊断引擎（Web UI :8501 / API :8000）
-#   otel-collector → 接收微服务上报的数据
-#   prometheus     → 时序指标（:9090）
-#   loki           → 日志聚合（:3100）
-#   jaeger         → 调用链（:16686）
-#   grafana        → 可视化看板（:3000）
+# 核心 5 个容器：
+#   aiops-agent    → 诊断引擎 + Web UI（:8000 API / :8501 UI）
+#   otel-collector → 接收微服务上报数据（:4317）
+#   prometheus     → 指标存储（:9090）
+#   loki           → 日志存储（:3100）
+#   jaeger         → 调用链存储（:16686）
 #
-# 注意：OTel Java Agent 不在这个 Compose 里。
-# 它是挂到你的微服务上的 JAR 包（见 README 说明）。
+# 可选：
+#   grafana        → 可视化看板（:3000）—— profile: full
 # ============================================================================
 
 version: "3.8"
 
 services:
-  # ==================== 1. AIOps Agent API（诊断引擎）====================
+  # ==================== 1. AIOps Agent（API + Web UI）====================
   aiops-agent:
     build:
       context: ..
@@ -28,34 +30,17 @@ services:
     image: aiops-agent:latest
     container_name: aiops-agent
     ports:
-      - "8000:8000"     # HTTP API（/health /diagnose /metrics）
+      - "8000:8000"     # HTTP API
+      - "8501:8501"     # Web UI
     environment:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - PROMETHEUS_URL=http://prometheus:9090
       - LOKI_URL=http://loki:3100
       - JAEGER_URL=http://jaeger:16686
-    command: ["agent.server", "--port", "8000"]
     depends_on:
       - prometheus
       - loki
       - jaeger
-    restart: unless-stopped
-
-  # ==================== 2. AIOps Agent Web UI ====================
-  aiops-ui:
-    image: aiops-agent:latest        # 复用同一个镜像
-    container_name: aiops-ui
-    ports:
-      - "8501:8501"
-    environment:
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - PROMETHEUS_URL=http://prometheus:9090
-      - LOKI_URL=http://loki:3100
-      - JAEGER_URL=http://jaeger:16686
-      - STREAMLIT_SERVER_PORT=8501
-    command: ["streamlit", "run", "ui/streamlit_app.py", "--server.port", "8501", "--server.headless", "true"]
-    depends_on:
-      - aiops-agent
     restart: unless-stopped
 
   # ==================== 2. OTel Collector ====================
@@ -66,12 +51,13 @@ services:
     volumes:
       - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
-      - "4317:4317"     # OTLP gRPC（微服务上报数据的入口）
-      - "4318:4318"     # OTLP HTTP
+      - "4317:4317"
+      - "4318:4318"
     depends_on:
       - jaeger
       - prometheus
       - loki
+    restart: unless-stopped
 
   # ==================== 3. Prometheus ====================
   prometheus:
@@ -84,6 +70,7 @@ services:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
+    restart: unless-stopped
 
   # ==================== 4. Loki ====================
   loki:
@@ -94,6 +81,7 @@ services:
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/loki-config.yaml
+    restart: unless-stopped
 
   # ==================== 5. Jaeger ====================
   jaeger:
@@ -101,13 +89,17 @@ services:
     container_name: jaeger
     environment:
       - COLLECTOR_OTLP_ENABLED=true
+      - MEMORY_MAX_TRACES=10000
     ports:
-      - "16686:16686"   # Web UI
+      - "16686:16686"
+    restart: unless-stopped
 
-  # ==================== 6. Grafana ====================
+  # ==================== 6. Grafana（可选）====================
   grafana:
     image: grafana/grafana:11.4.1
     container_name: grafana
+    profiles:
+      - full
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
     volumes:
@@ -118,3 +110,4 @@ services:
       - prometheus
       - loki
       - jaeger
+    restart: unless-stopped

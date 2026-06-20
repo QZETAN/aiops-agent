@@ -62,13 +62,8 @@ cd /d "%~dp0\.."
 echo.
 echo   等待所有服务就绪...
 
-:: 等待 + 逐个检查
-timeout /t 10 /nobreak >nul
-curl -s http://localhost:8000/health >nul 2>&1 && echo   [OK] Agent API   :8000   || echo   [..] Agent API 启动中...
-timeout /t 5 /nobreak >nul
-curl -s http://localhost:9090/api/v1/query?query=up >nul 2>&1 && echo   [OK] Prometheus  :9090   || echo   [..] Prometheus 启动中...
-curl -s http://localhost:16686/api/services >nul 2>&1 && echo   [OK] Jaeger      :16686  || echo   [..] Jaeger 启动中...
-timeout /t 5 /nobreak >nul
+:: 等待启动
+timeout /t 15 /nobreak >nul
 
 :: ========================================================================
 :: 4. 打开浏览器
@@ -81,7 +76,9 @@ echo     Web UI:     http://localhost:8501
 echo     Agent API:  http://localhost:8000
 echo     Prometheus: http://localhost:9090
 echo     Jaeger:     http://localhost:16686
-echo     Grafana:    http://localhost:3000
+echo     Loki:       http://localhost:3100
+echo.
+echo     需要 Grafana？  docker compose --profile full up -d
 echo.
 echo     浏览器即将打开 Web UI，输入告警即可诊断。
 echo   ============================================================

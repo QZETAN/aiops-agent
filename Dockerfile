@@ -54,6 +54,7 @@ RUN pip install --no-cache-dir -e .
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "from agent.agents.graph import build_graph; build_graph()" || exit 1
 
-# 默认：HTTP 服务模式（docker-compose 中通过 command 切换）
-ENTRYPOINT ["python", "-m"]
-CMD ["agent.server", "--port", "8000"]
+# 单容器同时运行 API + Web UI
+RUN chmod +x /app/scripts/entrypoint.sh
+EXPOSE 8000 8501
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]
