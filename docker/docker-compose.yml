@@ -1,7 +1,47 @@
+# ============================================================================
+# AIOps Agent 一体化部署
+# ============================================================================
+#
+# 一条命令启动全部：
+#   docker compose up -d
+#
+# 包含：
+#   aiops-agent    → 诊断引擎（Web UI :8501 / API :8000）
+#   otel-collector → 接收微服务上报的数据
+#   prometheus     → 时序指标（:9090）
+#   loki           → 日志聚合（:3100）
+#   jaeger         → 调用链（:16686）
+#   grafana        → 可视化看板（:3000）
+#
+# 注意：OTel Java Agent 不在这个 Compose 里。
+# 它是挂到你的微服务上的 JAR 包（见 README 说明）。
+# ============================================================================
+
 version: "3.8"
 
 services:
-  # ==================== 1. OTel Collector ====================
+  # ==================== 1. AIOps Agent（诊断引擎）====================
+  aiops-agent:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: aiops-agent:latest
+    container_name: aiops-agent
+    ports:
+      - "8000:8000"     # HTTP API（/health /diagnose /metrics）
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOKI_URL=http://loki:3100
+      - JAEGER_URL=http://jaeger:16686
+    command: ["--port", "8000"]
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    restart: unless-stopped
+
+  # ==================== 2. OTel Collector ====================
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.115.1
     container_name: otel-collector
@@ -9,14 +49,14 @@ services:
     volumes:
       - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
-      - "4317:4317"     # OTLP gRPC
+      - "4317:4317"     # OTLP gRPC（微服务上报数据的入口）
       - "4318:4318"     # OTLP HTTP
     depends_on:
       - jaeger
       - prometheus
       - loki
 
-  # ==================== 2. Prometheus ====================
+  # ==================== 3. Prometheus ====================
   prometheus:
     image: prom/prometheus:v3.0.1
     container_name: prometheus
@@ -28,7 +68,7 @@ services:
     ports:
       - "9090:9090"
 
-  # ==================== 3. Loki ====================
+  # ==================== 4. Loki ====================
   loki:
     image: grafana/loki:3.3.2
     container_name: loki
@@ -38,23 +78,21 @@ services:
       - "3100:3100"
     command: -config.file=/etc/loki/loki-config.yaml
 
-  # ==================== 4. Jaeger ====================
+  # ==================== 5. Jaeger ====================
   jaeger:
     image: jaegertracing/all-in-one:1.65.0
     container_name: jaeger
     environment:
-      - COLLECTOR_OTLP_ENABLED=true    # ← 开启 OTLP 接收
+      - COLLECTOR_OTLP_ENABLED=true
     ports:
       - "16686:16686"   # Web UI
-#      - "14250:14250"   # OTLP 端口（内部通信用）
-#      - "4317:4317"     # Jaeger 自己也监听 4317
 
-  # ==================== 5. Grafana ====================
+  # ==================== 6. Grafana ====================
   grafana:
     image: grafana/grafana:11.4.1
     container_name: grafana
     environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true   # 免登录，开发方便
+      - GF_AUTH_ANONYMOUS_ENABLED=true
     volumes:
       - ./config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
     ports:
