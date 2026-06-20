@@ -59,6 +59,18 @@ docker compose --profile full --env-file .env -f docker/docker-compose.yml up -d
 
 > Docker 跑在远程服务器上？把 `localhost` 换成服务器 IP。
 
+### 不想用 Docker？
+
+如果你已经有 Prometheus + Loki + Jaeger，或者只想本地跑 Agent：
+
+```bash
+pip install -e .
+# 编辑 .env，把 PROMETHEUS_URL / LOKI_URL / JAEGER_URL 指向你现有的监控
+streamlit run ui/streamlit_app.py
+```
+
+Agent 本身只是一个 Python 项目，Docker 只是为了方便打包监控基础设施。
+
 ---
 
 ## 怎么用
